@@ -1,5 +1,5 @@
 {
-  "id": "YOUR_KAGGLE_USERNAME/finetune-gemma4-e4b-qlora",
+  "id": "sachin0496/finetune-gemma4-e4b-qlora",
   "title": "Finetune Gemma 4 E4B QLoRA",
   "code_file": "Finetune",
   "language": "python",
