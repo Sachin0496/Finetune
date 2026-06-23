@@ -1,1 +1,105 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"name":"python","version":"3.6.6","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[],"isInternetEnabled":true,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"code","source":"# This Python 3 environment comes with many helpful analytics libraries installed\n# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n# For example, here's several helpful packages to load\n\nimport numpy as np # linear algebra\nimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n\n# Input data files are available in the read-only \"../input/\" directory\n# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n\nimport os\nfor dirname, _, filenames in os.walk('/kaggle/input'):\n    for filename in filenames:\n        print(os.path.join(dirname, filename))\n\n# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session\n\n# Use the kagglehub client library to attach Kaggle resources like competitions, datasets, and models to your session\n# Learn more about kagglehub: https://github.com/Kaggle/kagglehub/blob/main/README.md\n\nimport kagglehub\n# kagglehub.dataset_download('<owner>/<dataset-slug>')","metadata":{"_uuid":"8f2839f25d086af736a60e9eeb907d3b93b6e0e5","_cell_guid":"b1076dfc-b9ad-4769-8c92-a6c4dae69d19","trusted":true},"outputs":[],"execution_count":null}]}
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "# Finetune \u2014 Gemma 4 E4B agent distillation (QLoRA \u00b7 Unsloth)\n\nFree-tier Kaggle run. **Before running:** open the right sidebar \u2192 *Settings* \u2192\nset **Accelerator = GPU (T4 \u00d72 or P100)** and **Internet = On**.\n\nOptional *Add-ons \u2192 Secrets*: `HF_TOKEN` (if base weights are gated) and `GOOGLE_API_KEY`\n(lets the free teacher LLM enrich the dataset). Without them the run still works from the\ncommitted seed exemplars. Then **Run All**."
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "## 1. Install dependencies"
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": "# Kaggle images ship torch/transformers; add the fine-tuning stack.\n!pip install -q --no-deps unsloth unsloth_zoo\n!pip install -q trl peft accelerate bitsandbytes jsonschema\n!pip install -q --upgrade transformers   # Gemma 4 support"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "## 2. Pull the project code\nClones this repo into the session and puts `src/` on the path. Idempotent: it skips the\nclone if `src` is already importable (e.g. attached as a dataset)."
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": "import os, sys, subprocess\n\nREPO_URL = \"https://github.com/Sachin0496/Finetune.git\"\nREPO_DIR = \"/kaggle/working/Finetune\"\n\ndef have_src():\n    try:\n        import src  # noqa: F401\n        return True\n    except Exception:\n        return False\n\nif not have_src():\n    if not os.path.isdir(os.path.join(REPO_DIR, \"src\")):\n        subprocess.run([\"git\", \"clone\", \"--depth\", \"1\", REPO_URL, REPO_DIR], check=True)\n    sys.path.insert(0, REPO_DIR)\n\nimport src  # noqa: F401\nprint(\"project code ready\")"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "## 3. Build the dataset\nGenerates and validates the multi-task data (deck-plan JSON \u00b7 animation HTML \u00b7 tool calls)."
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": "from src import config\nfrom src.data.build_dataset import build, self_check\n\nself_check()\nsummary = build(config.DATA.n_train, config.DATA.n_val, config.DATA.seed)\nsummary"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "## 4. QLoRA fine-tune\nUnsloth 4-bit + LoRA on Gemma 4 E4B. The adapter is saved under `/kaggle/working/outputs`."
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": "from src.train.train_qlora import train\nadapter_dir = train()\nadapter_dir"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": "## 5. Before / after evaluation\nBase vs fine-tuned valid-output rates plus a side-by-side sample gallery."
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": "from src.eval.evaluate import evaluate\nmetrics = evaluate()\nmetrics"
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": "from IPython.display import Markdown, display\nfrom src import config\ndisplay(Markdown((config.OUTPUTS_DIR / \"eval_report.md\").read_text()))"
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "language": "python",
+   "display_name": "Python 3",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.10.13",
+   "mimetype": "text/x-python",
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "pygments_lexer": "ipython3",
+   "nbconvert_exporter": "python",
+   "file_extension": ".py"
+  },
+  "kaggle": {
+   "accelerator": "nvidiaTeslaT4",
+   "dataSources": [],
+   "isInternetEnabled": true,
+   "language": "python",
+   "sourceType": "notebook",
+   "isGpuEnabled": true
+  }
+ },
+ "nbformat_minor": 4,
+ "nbformat": 4
+}

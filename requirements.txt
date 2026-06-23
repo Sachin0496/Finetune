@@ -1,0 +1,20 @@
+# Core fine-tuning stack (Kaggle free-tier GPU: T4 16GB / P100 16GB)
+# Versions are intentionally loose with lower bounds; the Kaggle notebook pins the
+# exact wheels it installs so a Save & Run All is reproducible.
+unsloth>=2025.6.0
+trl>=0.9.6
+peft>=0.11.0
+transformers>=4.53.0          # Gemma 4 support
+datasets>=2.19.0
+accelerate>=0.30.0
+bitsandbytes>=0.43.0
+
+# Validation / data
+jsonschema>=4.21.0
+
+# Optional free teacher LLM for synthetic data augmentation (Google AI Studio).
+# The pipeline runs fully offline from committed seed exemplars if this is absent.
+google-generativeai>=0.7.0
+
+# Model hub persistence (optional adapter push)
+huggingface_hub>=0.23.0
